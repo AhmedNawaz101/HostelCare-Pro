@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HMS - Student Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/app.js"></script>
+</head>
+
+<body style="background: var(--bg);">
+<header>
+  <div class="container">
+    <div class="dashboard-header" style="margin: -12px -16px 0;">
+      <div>
+        <h1 style="margin:0;">📋 Student Dashboard</h1>
+        <p style="margin:6px 0 0; opacity:0.9;">Submit, track, and manage your complaints</p>
+      </div>
+      <div class="user-info">
+        <strong id="username"></strong>
+        <small style="color:rgba(255,255,255,0.8);">Student</small>
+        <button class="btn-logout" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container" style="padding-top:20px;">
+  <div id="alert"></div>
+
+  <!-- Submit Complaint Card -->
+  <div class="card">
+    <h3>📝 Submit New Complaint</h3>
+    <div class="field">
+      <label for="category">Category</label>
+      <select id="category">
+        <option value="">Select a category</option>
+        <option value="PLUMBING">🚰 Plumbing</option>
+        <option value="ELECTRICAL">⚡ Electrical</option>
+        <option value="HYGIENE">🧼 Hygiene</option>
+        <option value="NOISE">🔊 Noise</option>
+        <option value="FACILITY">🏢 Facility</option>
+        <option value="INTERNET">🌐 Internet</option>
+        <option value="FOOD">🍽️ Food</option>
+        <option value="MAINTENANCE">🛠️ Maintenance</option>
+        <option value="OTHER">❓ Other</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:0.5; min-width:120px;">
+        <label for="hostelNo">Hostel No</label>
+        <input id="hostelNo" type="number" min="1" placeholder="e.g. 3" />
+      </div>
+      <div class="field" style="flex:0.5; min-width:120px;">
+        <label for="roomNo">Room No</label>
+        <input id="roomNo" type="text" maxlength="10" placeholder="e.g. 201B" />
+      </div>
+    </div>
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" placeholder="Describe your complaint in detail..." rows="4"></textarea>
+    </div>
+    <button onclick="submitComplaint()">Submit Complaint</button>
+  </div>
+
+  <!-- Complaints List -->
+  <div class="card">
+    <h3>📊 My Complaints</h3>
+    <div id="complaintsList" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal('editModal')">✕</button>
+      <h3 class="modal-title">Edit Complaint</h3>
+      
+      <div class="row">
+        <div class="field" style="flex:1; min-width:120px;">
+          <label>Tracking ID</label>
+          <input id="editTrackingId" readonly style="background: #f3f4f6; cursor: not-allowed;" />
+        </div>
+        <div class="field" style="flex:0.5; min-width:100px;">
+          <label for="editHostelNo">Hostel No</label>
+          <input id="editHostelNo" type="number" min="1" />
+        </div>
+        <div class="field" style="flex:0.5; min-width:100px;">
+          <label for="editRoomNo">Room No</label>
+          <input id="editRoomNo" type="text" maxlength="10" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="editDescription">Description</label>
+        <textarea id="editDescription" rows="4"></textarea>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button onclick="saveComplaintEdit()">Save Changes</button>
+        <button class="secondary" onclick="closeModal('editModal')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let currentEditId = null;
+
+  function logout() {
+    localStorage.removeItem('hms.username');
+    localStorage.removeItem('hms.password');
+    localStorage.removeItem('hms.role');
+    localStorage.removeItem('hms.userId');
+    window.location.href = 'login.html';
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+  }
+
+  async function submitComplaint() {
+    const category = document.getElementById('category').value.trim();
+    const description = document.getElementById('description').value.trim();
+    const hostelNo = document.getElementById('hostelNo').value.trim();
+    const roomNo = document.getElementById('roomNo').value.trim();
+    const alertDiv = document.getElementById('alert');
+    alertDiv.innerHTML = '';
+
+    if (!category) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Please select a category</div>';
+      return;
+    }
+    if (!hostelNo) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Please enter hostel number</div>';
+      return;
+    }
+    if (!roomNo) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Please enter room number</div>';
+      return;
+    }
+    if (!description) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Please describe your complaint</div>';
+      return;
+    }
+
+    try {
+      const res = await apiFetch('/api/student/complaints', {
+        method: 'POST',
+        body: JSON.stringify({ category, description, hostelNo: parseInt(hostelNo), roomNo })
+      });
+
+      alertDiv.innerHTML = `<div class="alert alert-success">✅ Complaint submitted! Tracking ID: <strong>${res.trackingId}</strong></div>`;
+      document.getElementById('category').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('hostelNo').value = '';
+      document.getElementById('roomNo').value = '';
+
+      // Reload complaints
+      setTimeout(() => loadComplaints(), 800);
+    } catch (e) {
+      alertDiv.innerHTML = `<div class="alert alert-error">❌ ${e.message}</div>`;
+    }
+  }
+
+  async function loadComplaints() {
+    try {
+      const complaints = await apiFetch('/api/student/complaints');
+      const list = document.getElementById('complaintsList');
+
+      if (complaints.length === 0) {
+        list.innerHTML = '<p style="color:var(--muted);">No complaints yet. Submit one above!</p>';
+        return;
+      }
+
+      list.innerHTML = complaints.map(c => `
+        <div class="complaint-card">
+          <div class="complaint-header">
+            <h4 class="complaint-title">${c.category}</h4>
+            <span class="complaint-id">🆔 ${c.trackingId}</span>
+          </div>
+          <div style="display:flex; gap:16px; font-size:13px; color:var(--muted); margin-bottom:4px;">
+            <span>🏢 Hostel: <b>${c.hostelNo}</b></span>
+            <span>🚪 Room: <b>${c.roomNo}</b></span>
+          </div>
+          <p style="margin:8px 0; color:var(--text);">${c.description}</p>
+          <div style="font-size:12px; color:var(--muted);">
+            📅 Created: ${new Date(c.createdAt).toLocaleDateString()}<br/>
+            🔄 Updated: ${new Date(c.updatedAt).toLocaleDateString()}
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+            <span class="complaint-status status-${c.status.toLowerCase()}">${c.status}</span>
+            ${c.assignedStaffUsername ? `<span style="font-size:11px; background:#e0e7ff; padding:4px 8px; border-radius:6px;">👤 ${c.assignedStaffUsername}</span>` : ''}
+          </div>
+          <div class="complaint-actions">
+            <button class="ghost" style="padding:6px 10px;" onclick="editComplaint(${c.id}, '${c.trackingId}', '${c.description.replace(/'/g, "\\'")}', ${c.hostelNo}, '${c.roomNo}')">✏️ Edit</button>
+            <button class="danger" style="padding:6px 10px; font-size:12px;" onclick="deleteComplaint(${c.id}, '${c.trackingId}')">🗑️ Delete</button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      document.getElementById('complaintsList').innerHTML = `<div class="alert alert-error">Error loading complaints: ${e.message}</div>`;
+    }
+  }
+
+  function editComplaint(id, trackingId, description, hostelNo, roomNo) {
+    currentEditId = id;
+    document.getElementById('editTrackingId').value = trackingId;
+    document.getElementById('editDescription').value = description;
+    document.getElementById('editHostelNo').value = hostelNo;
+    document.getElementById('editRoomNo').value = roomNo;
+    document.getElementById('editModal').classList.add('active');
+  }
+
+  async function saveComplaintEdit() {
+    if (!currentEditId) return;
+
+    const newDescription = document.getElementById('editDescription').value.trim();
+    const newHostelNo = document.getElementById('editHostelNo').value.trim();
+    const newRoomNo = document.getElementById('editRoomNo').value.trim();
+    const alertDiv = document.getElementById('alert');
+    alertDiv.innerHTML = '';
+
+    if (!newDescription) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Description cannot be empty</div>';
+      return;
+    }
+    if (!newHostelNo) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Hostel number cannot be empty</div>';
+      return;
+    }
+    if (!newRoomNo) {
+      alertDiv.innerHTML = '<div class="alert alert-error">❌ Room number cannot be empty</div>';
+      return;
+    }
+
+    try {
+      await apiFetch(`/api/student/complaints/${currentEditId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          category: document.getElementById('category').value || 'PLUMBING', // fallback
+          description: newDescription,
+          hostelNo: parseInt(newHostelNo),
+          roomNo: newRoomNo
+        })
+      });
+
+      alertDiv.innerHTML = '<div class="alert alert-success">✅ Complaint updated!</div>';
+      closeModal('editModal');
+      setTimeout(() => loadComplaints(), 600);
+    } catch (e) {
+      alertDiv.innerHTML = `<div class="alert alert-error">❌ ${e.message}</div>`;
+    }
+  }
+
+  async function deleteComplaint(id, trackingId) {
+    if (!confirm(`Delete complaint ${trackingId}? This cannot be undone.`)) return;
+
+    const alertDiv = document.getElementById('alert');
+    alertDiv.innerHTML = '';
+
+    try {
+      await apiFetch(`/api/student/complaints/${id}`, { method: 'DELETE' });
+      alertDiv.innerHTML = `<div class="alert alert-success">✅ Complaint ${trackingId} deleted!</div>`;
+      setTimeout(() => loadComplaints(), 600);
+    } catch (e) {
+      alertDiv.innerHTML = `<div class="alert alert-error">❌ ${e.message}</div>`;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const username = localStorage.getItem('hms.userId');
+    if (!username) {
+      window.location.href = 'login.html';
+      return;
+    }
+    document.getElementById('username').textContent = username;
+    loadComplaints();
+  });
+</script>
+</body>
+</html>

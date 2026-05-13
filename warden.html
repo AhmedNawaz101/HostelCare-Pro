@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Warden Portal</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/app.js"></script>
+</head>
+<body>
+<header><h2>Warden Portal</h2></header>
+<main>
+  <div class="card">
+    <h3>Pending Complaints</h3>
+    <div style="display:flex; gap:8px;">
+      <button onclick="loadPending()">Load Pending</button>
+    </div>
+    <p class="small">Assign by complaintId + staff username (default staff1)</p>
+    <div class="row" style="margin-top:12px;">
+      <div style="flex:1; min-width:200px;">
+        <label>Complaint ID</label>
+        <input id="cid" />
+      </div>
+      <div style="flex:1; min-width:200px;">
+        <label>Staff username</label>
+        <input id="staff" value="staff1" />
+      </div>
+      <div style="flex:1; min-width:200px;">
+        <label>Status</label>
+        <select id="status">
+          <option value="PENDING">PENDING</option>
+          <option value="IN_PROGRESS">IN_PROGRESS</option>
+          <option value="RESOLVED">RESOLVED</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button onclick="assign()">Assign</button>
+      <button onclick="updateStatus()">Update Status</button>
+      <button class="secondary" onclick="escalate()">Escalate (48h+)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Post Announcement</h3>
+    <div class="row">
+      <div style="flex:1; min-width:220px;">
+        <label>Title</label>
+        <input id="ntitle" />
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <label>Audience</label>
+        <input id="naudience" value="ALL" />
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <label>Message</label>
+      <textarea id="nmsg" rows="3"></textarea>
+    </div>
+    <div style="margin-top:12px;">
+      <button onclick="postNotice()">Post</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Output</h3>
+    <pre id="out"></pre>
+  </div>
+</main>
+
+<script>
+  async function loadPending() {
+    try {
+      const res = await apiFetch('/api/warden/complaints/pending');
+      setOutput('out', res);
+    } catch (e) {
+      setOutput('out', { error: e.message });
+    }
+  }
+
+  async function assign() {
+    try {
+      const id = document.getElementById('cid').value;
+      const res = await apiFetch(`/api/warden/complaints/${id}/assign`, {
+        method: 'POST',
+        body: JSON.stringify({ staffUsername: document.getElementById('staff').value })
+      });
+      setOutput('out', res);
+    } catch (e) {
+      setOutput('out', { error: e.message });
+    }
+  }
+
+  async function updateStatus() {
+    try {
+      const id = document.getElementById('cid').value;
+      const res = await apiFetch(`/api/warden/complaints/${id}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: document.getElementById('status').value })
+      });
+      setOutput('out', res);
+    } catch (e) {
+      setOutput('out', { error: e.message });
+    }
+  }
+
+  async function escalate() {
+    try {
+      const id = document.getElementById('cid').value;
+      const res = await apiFetch(`/api/warden/complaints/${id}/escalate`, { method: 'POST' });
+      setOutput('out', res);
+    } catch (e) {
+      setOutput('out', { error: e.message });
+    }
+  }
+
+  async function postNotice() {
+    try {
+      const res = await apiFetch('/api/warden/notices', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: document.getElementById('ntitle').value,
+          message: document.getElementById('nmsg').value,
+          targetAudience: document.getElementById('naudience').value
+        })
+      });
+      setOutput('out', res);
+    } catch (e) {
+      setOutput('out', { error: e.message });
+    }
+  }
+</script>
+</body>
+</html>
